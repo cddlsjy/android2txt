@@ -1,0 +1,29 @@
+# Gradle files
+build/
+.gradle/
+
+# IDE files
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Android files
+local.properties
+*.keystore
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Log files
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Generated files
+app/src/main/java/com/projectprocessor/BuildConfig.kt
+app/src/main/java/com/projectprocessor/R.java
