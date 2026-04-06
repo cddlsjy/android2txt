@@ -202,6 +202,7 @@ class MainViewModel(private val context: Context) : ViewModel() {
                             fileTreeManager.loadContentFromFolder(uri, file)
                         }
                     }
+                    else -> null
                 }
                 _previewContent.value = content ?: "[无法读取文件]"
             } catch (e: Exception) {
@@ -311,7 +312,7 @@ class MainViewModel(private val context: Context) : ViewModel() {
                 message = message,
                 type = type
             )
-            _logs.value = _logs.value + entry
+            _logs.value = _logs.value.toMutableList().apply { add(entry) }
         }
     }
 }

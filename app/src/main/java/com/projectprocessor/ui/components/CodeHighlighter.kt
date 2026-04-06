@@ -54,7 +54,7 @@ private fun highlightLine(line: String, ext: String): AnnotatedString {
             "sealed", "open", "abstract", "override", "final", "companion", "init",
             "constructor", "super", "this", "throw", "try", "catch", "finally"
         )
-        val stringRegex = "\"([^\\"\\\\]*(\\\\.[^\\"\\\\]*)*)\""".toRegex()
+        val stringRegex = "\"([^\"\\\\]*(\\\\.[^\"\\\\]*)*)\"".toRegex()
         val commentRegex = "//.*".toRegex()
         val annotationRegex = "@\\w+".toRegex()
 

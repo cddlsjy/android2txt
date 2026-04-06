@@ -1,5 +1,7 @@
 package com.projectprocessor.data.model
 
+import android.net.Uri
+
 object FileExtensions {
     val DEFAULT_CODE_EXTENSIONS = setOf(
         ".java", ".kt", ".kts", ".ets", ".c", ".h", ".cpp", ".cc", ".cxx", ".hpp", ".hxx",
