@@ -1,9 +1,16 @@
 name: Build Android APK
 
 on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+  push:               # 任意分支 push 都触发
+  workflow_dispatch:  # 保留手动触发
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
