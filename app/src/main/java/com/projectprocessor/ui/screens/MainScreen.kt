@@ -53,9 +53,11 @@ fun MainScreen(
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val isLargeScreen = configuration.screenWidthDp >= 600
+    val isSmallScreen = configuration.screenWidthDp < 600
     val useSplitLayout = isLandscape && isLargeScreen
 
     val snackbarHostState = remember { SnackbarHostState() }
+    var pendingStartAfterOutput by remember { mutableStateOf(false) }
 
     val zipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let {
@@ -70,7 +72,13 @@ fun MainScreen(
         }
     }
     val outputPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        uri?.let { viewModel.updateOutputDirUri(uri) }
+        uri?.let {
+            viewModel.updateOutputDirUri(uri)
+            if (pendingStartAfterOutput) {
+                pendingStartAfterOutput = false
+                viewModel.startProcess()
+            }
+        }
     }
 
     var showInputDialog by remember { mutableStateOf(false) }
@@ -97,7 +105,22 @@ fun MainScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = {
-                    if (isProcessing) viewModel.stopProcess() else viewModel.startProcess()
+                    if (isProcessing) {
+                        viewModel.stopProcess()
+                    } else {
+                        when {
+                            inputUri == null -> {
+                                showInputDialog = true
+                            }
+                            outputDirUri == null -> {
+                                pendingStartAfterOutput = true
+                                outputPicker.launch(null)
+                            }
+                            else -> {
+                                viewModel.startProcess()
+                            }
+                        }
+                    }
                 },
                 icon = {
                     if (isProcessing) {
@@ -130,6 +153,7 @@ fun MainScreen(
                             showInputDialog = showInputDialog,
                             onShowInputDialogChange = { showInputDialog = it },
                             outputPicker = { outputPicker.launch(null) },
+                            isSmallScreen = isSmallScreen,
                             modifier = Modifier.weight(0.4f)
                         )
                     }
@@ -159,6 +183,7 @@ fun MainScreen(
                             showInputDialog = showInputDialog,
                             onShowInputDialogChange = { showInputDialog = it },
                             outputPicker = { outputPicker.launch(null) },
+                            isSmallScreen = isSmallScreen,
                             modifier = Modifier.weight(0.35f)
                         )
                     }
@@ -388,8 +413,12 @@ fun SettingsPanel(
     showInputDialog: Boolean,
     onShowInputDialogChange: (Boolean) -> Unit,
     outputPicker: () -> Unit,
+    isSmallScreen: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val contentPadding = if (isSmallScreen) 8.dp else 12.dp
+    val buttonPadding = if (isSmallScreen) PaddingValues(horizontal = 12.dp, vertical = 8.dp) else PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+    
     Card(
         modifier = modifier.fillMaxSize().padding(8.dp),
         shape = RoundedCornerShape(16.dp),
@@ -398,60 +427,76 @@ fun SettingsPanel(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp)
+                .padding(contentPadding)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(if (isSmallScreen) 6.dp else 8.dp)
         ) {
             OutlinedButton(
                 onClick = { onShowInputDialogChange(true) },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = buttonPadding
             ) {
-                Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
+                Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
                 Text(
-                    if (inputUri != null) "已选: ${inputUri.lastPathSegment}" else "选择输入源",
+                    if (inputUri != null) {
+                        val path = inputUri.lastPathSegment
+                        val shortPath = path?.substringAfterLast('/')?.take(15) ?: path
+                        "已选: $shortPath"
+                    } else "选择输入源",
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = if (isSmallScreen) 12.sp else 14.sp
                 )
             }
             OutlinedButton(
                 onClick = outputPicker,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = buttonPadding
             ) {
-                Icon(Icons.Default.SaveAlt, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
+                Icon(Icons.Default.SaveAlt, null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
                 Text(
-                    if (outputDirUri != null) "输出: ${outputDirUri.lastPathSegment}" else "选择输出目录",
+                    if (outputDirUri != null) {
+                        val path = outputDirUri.lastPathSegment
+                        val shortPath = path?.substringAfterLast('/')?.take(15) ?: path
+                        "输出: $shortPath"
+                    } else "选择输出目录",
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    fontSize = if (isSmallScreen) 12.sp else 14.sp
                 )
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(
-                    checked = config.processCode,
-                    onCheckedChange = { viewModel.updateProcessCode(it) },
-                    modifier = Modifier.size(20.dp)
-                )
-                Text("代码", fontSize = 12.sp)
-                Spacer(Modifier.width(8.dp))
-                Checkbox(
-                    checked = config.processXml,
-                    onCheckedChange = { viewModel.updateProcessXml(it) },
-                    modifier = Modifier.size(20.dp)
-                )
-                Text("XML", fontSize = 12.sp)
-                Spacer(Modifier.width(8.dp))
-                Checkbox(
-                    checked = config.processAdvanced,
-                    onCheckedChange = { viewModel.updateProcessAdvanced(it) },
-                    modifier = Modifier.size(20.dp)
-                )
-                Text("高级", fontSize = 12.sp)
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = config.processCode,
+                        onCheckedChange = { viewModel.updateProcessCode(it) },
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text("代码", fontSize = 11.sp)
+                }
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = config.processXml,
+                        onCheckedChange = { viewModel.updateProcessXml(it) },
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text("XML", fontSize = 11.sp)
+                }
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = config.processAdvanced,
+                        onCheckedChange = { viewModel.updateProcessAdvanced(it) },
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text("高级", fontSize = 11.sp)
+                }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("大小:", fontSize = 12.sp)
+                Text("大小:", fontSize = 11.sp)
                 Spacer(Modifier.width(4.dp))
-                Text("${config.splitMb}MB", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                Text("${config.splitMb}MB", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
             }
         }
     }
