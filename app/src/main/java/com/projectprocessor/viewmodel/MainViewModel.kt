@@ -8,6 +8,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewModelScope
 import com.projectprocessor.data.model.*
 import com.projectprocessor.data.repository.PreferencesRepository
@@ -23,6 +25,16 @@ import kotlinx.coroutines.launch
 import java.util.*
 
 class MainViewModel(private val context: Context) : ViewModel() {
+
+    class Factory(private val context: Context) : ViewModelProvider.Factory {
+        override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
+            if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
+                @Suppress("UNCHECKED_CAST")
+                return MainViewModel(context) as T
+            }
+            throw IllegalArgumentException("Unknown ViewModel class")
+        }
+    }
 
     private val preferencesRepo = PreferencesRepository(context)
     private val fileTreeManager = FileTreeManager(context)

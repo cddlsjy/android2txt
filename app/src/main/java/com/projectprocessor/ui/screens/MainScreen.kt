@@ -254,7 +254,7 @@ fun FileTreeNodeView(
     onFolderToggle: (FileFolder) -> Unit,
     level: Int
 ) {
-    val indent = level * 16.dp
+    val indent = (level * 16).dp
     when (node) {
         is FileFolder -> {
             var expanded by remember { mutableStateOf(node.isExpanded) }
