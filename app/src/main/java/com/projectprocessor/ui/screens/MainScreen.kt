@@ -2,7 +2,6 @@ package com.projectprocessor.ui.screens
 
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -376,7 +375,7 @@ fun FileTreeNodeView(
     onFolderToggle: (FileFolder) -> Unit,
     level: Int
 ) {
-    val indent = (level * 16f).dp
+    val indent = (level * 16).dp
     when (node) {
         is FileFolder -> {
             var expanded by remember { mutableStateOf(node.isExpanded) }
@@ -535,7 +534,7 @@ fun SettingsPanel(
                     ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                 },
                 contentPadding = if (isSmallScreen) PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                else ButtonDefaults.ContentPadding
+                else PaddingValues(horizontal = 16.dp, vertical = 12.dp)
             ) {
                 Icon(
                     if (inputUri != null) Icons.Default.CheckCircle else Icons.Default.FolderOpen,
@@ -564,7 +563,7 @@ fun SettingsPanel(
                     ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed)
                 },
                 contentPadding = if (isSmallScreen) PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                else ButtonDefaults.ContentPadding
+                else PaddingValues(horizontal = 16.dp, vertical = 12.dp)
             ) {
                 Icon(
                     if (outputDirUri != null) Icons.Default.CheckCircle else Icons.Default.SaveAlt,
