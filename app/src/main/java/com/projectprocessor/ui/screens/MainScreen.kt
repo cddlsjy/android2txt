@@ -29,12 +29,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.projectprocessor.data.model.*
-import com.projectprocessor.ui.components.CheckboxWithLabel
 import com.projectprocessor.ui.components.CodeHighlighter
 import com.projectprocessor.ui.theme.*
 import com.projectprocessor.viewmodel.MainViewModel
-import com.projectprocessor.viewmodel.MessageType
-import com.projectprocessor.viewmodel.UserMessage
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,7 +43,6 @@ fun MainScreen(
     val inputUri by viewModel.inputUri.collectAsStateWithLifecycle()
     val outputDirUri by viewModel.outputDirUri.collectAsStateWithLifecycle()
     val processState by viewModel.processState.collectAsStateWithLifecycle()
-    val userMessage by viewModel.userMessage.collectAsStateWithLifecycle()
     val fileTreeRoot by viewModel.fileTreeRoot.collectAsStateWithLifecycle()
     val selectedFile by viewModel.selectedFile.collectAsStateWithLifecycle()
     val previewContent by viewModel.previewContent.collectAsStateWithLifecycle()
@@ -58,69 +54,25 @@ fun MainScreen(
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val isLargeScreen = configuration.screenWidthDp >= 600
     val useSplitLayout = isLandscape && isLargeScreen
-    val isSmallScreen = configuration.screenWidthDp < 600
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
-
-    // 自动处理标志
     var pendingStartAfterOutput by remember { mutableStateOf(false) }
 
-    // 监听用户消息并显示 Snackbar
-    LaunchedEffect(userMessage) {
-        userMessage?.let { message ->
-            val result = snackbarHostState.showSnackbar(
-                message = message.message,
-                actionLabel = if (message.type == MessageType.WARNING) "选择" else "确定",
-                duration = when (message.type) {
-                    MessageType.SUCCESS -> SnackbarDuration.Short
-                    MessageType.ERROR -> SnackbarDuration.Long
-                    else -> SnackbarDuration.Short
-                }
-            )
-            if (result == SnackbarResult.ActionPerformed && message.type == MessageType.WARNING) {
-                if (message.message.contains("输出目录")) {
-                    outputPicker.launch(null)
-                } else if (message.message.contains("输入源")) {
-                    showInputDialog = true
-                }
-            }
-            viewModel.clearUserMessage()
-        }
-    }
-
-    // 文件选择器 - ZIP文件
     val zipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let {
-            try {
-                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
-                context.contentResolver.takePersistableUriPermission(it, takeFlags)
-            } catch (e: Exception) { }
             viewModel.updateInputUri(it, false)
             viewModel.loadFileTree(it, false)
         }
     }
-
-    // 文件选择器 - 文件夹
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let {
-            try {
-                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                context.contentResolver.takePersistableUriPermission(it, takeFlags)
-            } catch (e: Exception) { }
-            viewModel.updateInputUri(it, true)
-            viewModel.loadFileTree(it, true)
+            viewModel.updateInputUri(uri, true)
+            viewModel.loadFileTree(uri, true)
         }
     }
-
-    // 输出目录选择器
     val outputPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let {
-            try {
-                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                context.contentResolver.takePersistableUriPermission(it, takeFlags)
-            } catch (e: Exception) { }
-            viewModel.updateOutputDirUri(it)
+            viewModel.updateOutputDirUri(uri)
             if (pendingStartAfterOutput) {
                 pendingStartAfterOutput = false
                 viewModel.startProcess()
@@ -138,27 +90,11 @@ fun MainScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = {
-                    if (isLargeScreen) {
-                        Text("安卓项目处理器", fontSize = 18.sp)
-                    } else {
-                        // 小屏幕只显示图标，节省空间
-                        Icon(Icons.Default.Storage, contentDescription = "安卓项目处理器", modifier = Modifier.size(24.dp))
-                    }
-                },
+                title = { Text("安卓项目处理器", fontSize = 18.sp) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 ),
                 actions = {
-                    if (inputUri == null || outputDirUri == null) {
-                        Icon(
-                            Icons.Default.Warning,
-                            contentDescription = "未完成配置",
-                            tint = WarningOrange,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                    }
                     IconButton(onClick = { showSettings = true }) {
                         Icon(Icons.Default.Settings, contentDescription = "设置")
                     }
@@ -168,21 +104,7 @@ fun MainScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = {
-                    if (isProcessing) {
-                        viewModel.stopProcess()
-                    } else {
-                        val inputSelected = inputUri != null
-                        if (!inputSelected) {
-                            showInputDialog = true
-                            return@ExtendedFloatingActionButton
-                        }
-                        if (outputDirUri == null) {
-                            pendingStartAfterOutput = true
-                            outputPicker.launch(null)
-                            return@ExtendedFloatingActionButton
-                        }
-                        viewModel.startProcess()
-                    }
+                    if (isProcessing) viewModel.stopProcess() else viewModel.startProcess()
                 },
                 icon = {
                     if (isProcessing) {
@@ -191,11 +113,11 @@ fun MainScreen(
                         Icon(Icons.Default.PlayArrow, null)
                     }
                 },
-                text = { Text(if (isProcessing) "取消" else "开始处理") },
-                containerColor = if (isProcessing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primaryContainer
+                text = { Text(if (isProcessing) "取消" else "开始处理") }
             )
         }
-    ) { paddingValues ->
+    ) {
+        paddingValues ->
         Box(modifier = Modifier.padding(paddingValues)) {
             if (useSplitLayout) {
                 Row(modifier = Modifier.fillMaxSize()) {
@@ -215,7 +137,6 @@ fun MainScreen(
                             showInputDialog = showInputDialog,
                             onShowInputDialogChange = { showInputDialog = it },
                             outputPicker = { outputPicker.launch(null) },
-                            isSmallScreen = isSmallScreen,
                             modifier = Modifier.weight(0.4f)
                         )
                     }
@@ -245,7 +166,6 @@ fun MainScreen(
                             showInputDialog = showInputDialog,
                             onShowInputDialogChange = { showInputDialog = it },
                             outputPicker = { outputPicker.launch(null) },
-                            isSmallScreen = isSmallScreen,
                             modifier = Modifier.weight(0.35f)
                         )
                     }
@@ -267,34 +187,12 @@ fun MainScreen(
             title = { Text("选择输入源") },
             text = {
                 Column {
-                    Text(
-                        "请选择ZIP文件或文件夹作为输入源",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Button(
-                        onClick = {
-                            zipPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "*/*"))
-                            showInputDialog = false
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Archive, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("选择 ZIP 文件")
+                    Button(onClick = { zipPicker.launch(arrayOf("application/zip")); showInputDialog = false }) {
+                        Text("ZIP 文件")
                     }
                     Spacer(Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = {
-                            folderPicker.launch(null)
-                            showInputDialog = false
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Folder, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("选择文件夹")
+                    Button(onClick = { folderPicker.launch(null); showInputDialog = false }) {
+                        Text("文件夹")
                     }
                 }
             },
@@ -337,19 +235,7 @@ fun FileTreePanel(
     ) {
         if (root == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.FolderOff,
-                        contentDescription = null,
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "请先选择 ZIP 或文件夹",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text("请先选择 ZIP 或文件夹", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize().padding(8.dp)) {
@@ -509,7 +395,6 @@ fun SettingsPanel(
     showInputDialog: Boolean,
     onShowInputDialogChange: (Boolean) -> Unit,
     outputPicker: () -> Unit,
-    isSmallScreen: Boolean,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -520,126 +405,56 @@ fun SettingsPanel(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(if (isSmallScreen) 8.dp else 12.dp)
+                .padding(12.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(if (isSmallScreen) 6.dp else 8.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // 输入源按钮
             OutlinedButton(
                 onClick = { onShowInputDialogChange(true) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = if (inputUri != null) {
-                    ButtonDefaults.outlinedButtonColors(contentColor = SuccessGreen)
-                } else {
-                    ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
-                },
-                contentPadding = if (isSmallScreen) PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                else PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(
-                    if (inputUri != null) Icons.Default.CheckCircle else Icons.Default.FolderOpen,
-                    null,
-                    modifier = Modifier.size(if (isSmallScreen) 16.dp else 18.dp)
-                )
-                Spacer(Modifier.width(if (isSmallScreen) 4.dp else 8.dp))
+                Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
                 Text(
-                    text = if (inputUri != null) {
-                        val lastSegment = inputUri.lastPathSegment ?: "已选"
-                        lastSegment.substringAfterLast('/').take(if (isSmallScreen) 15 else 30)
-                    } else "选择输入源",
-                    fontSize = if (isSmallScreen) 12.sp else 14.sp,
+                    if (inputUri != null) "已选: ${inputUri.lastPathSegment}" else "选择输入源",
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-
-            // 输出目录按钮
             OutlinedButton(
                 onClick = outputPicker,
-                modifier = Modifier.fillMaxWidth(),
-                colors = if (outputDirUri != null) {
-                    ButtonDefaults.outlinedButtonColors(contentColor = SuccessGreen)
-                } else {
-                    ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed)
-                },
-                contentPadding = if (isSmallScreen) PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                else PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(
-                    if (outputDirUri != null) Icons.Default.CheckCircle else Icons.Default.SaveAlt,
-                    null,
-                    modifier = Modifier.size(if (isSmallScreen) 16.dp else 18.dp)
-                )
-                Spacer(Modifier.width(if (isSmallScreen) 4.dp else 8.dp))
+                Icon(Icons.Default.SaveAlt, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
                 Text(
-                    text = if (outputDirUri != null) {
-                        val lastSegment = outputDirUri.lastPathSegment ?: "已选"
-                        lastSegment.substringAfterLast('/').take(if (isSmallScreen) 15 else 30)
-                    } else "选择输出目录",
-                    fontSize = if (isSmallScreen) 12.sp else 14.sp,
+                    if (outputDirUri != null) "输出: ${outputDirUri.lastPathSegment}" else "选择输出目录",
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-
-            // 状态提示
-            if (inputUri == null || outputDirUri == null) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            WarningOrange.copy(alpha = 0.1f),
-                            RoundedCornerShape(8.dp)
-                        )
-                        .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.Info,
-                        null,
-                        tint = WarningOrange,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        if (inputUri == null && outputDirUri == null)
-                            "请选择输入源和输出目录"
-                        else if (inputUri == null)
-                            "请选择输入源"
-                        else
-                            "请选择输出目录",
-                        fontSize = 11.sp,
-                        color = WarningOrange
-                    )
-                }
-            }
-
-            // 三个复选框一行显示
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                CheckboxWithLabel(
-                    label = "代码",
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
                     checked = config.processCode,
                     onCheckedChange = { viewModel.updateProcessCode(it) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.size(20.dp)
                 )
-                CheckboxWithLabel(
-                    label = "XML",
+                Text("代码", fontSize = 12.sp)
+                Spacer(Modifier.width(8.dp))
+                Checkbox(
                     checked = config.processXml,
                     onCheckedChange = { viewModel.updateProcessXml(it) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.size(20.dp)
                 )
-                CheckboxWithLabel(
-                    label = "高级",
+                Text("XML", fontSize = 12.sp)
+                Spacer(Modifier.width(8.dp))
+                Checkbox(
                     checked = config.processAdvanced,
                     onCheckedChange = { viewModel.updateProcessAdvanced(it) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.size(20.dp)
                 )
+                Text("高级", fontSize = 12.sp)
             }
-
-            // 大小显示
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("大小:", fontSize = 12.sp)
                 Spacer(Modifier.width(4.dp))
