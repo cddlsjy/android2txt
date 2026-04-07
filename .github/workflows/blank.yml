@@ -1,0 +1,66 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ '**'  ]
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        id: setup-java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Set JAVA_HOME globally
+        run: echo "JAVA_HOME=${{ steps.setup-java.outputs.path }}" >> $GITHUB_ENV
+
+      - name: Verify Java
+        run: |
+          echo "JAVA_HOME: $JAVA_HOME"
+          java -version
+
+      # ✅ 关键修复1：不指定 gradle-version，使用项目 wrapper 中的 8.13
+      # 如果仍然想显式指定，改为 gradle-version: '8.13'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        # with:
+        #   gradle-version: '8.13'   # 可选，但建议省略以使用 wrapper
+
+      # ✅ 关键修复2：给 gradlew 添加执行权限
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      # ✅ 关键修复3：使用 ./gradlew 而不是 gradle
+      - name: Build APK
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
+
+      - name: Find and upload APK
+        id: find_apk
+        run: |
+          APK_PATH=$(find app/build/outputs -name "*.apk" -type f | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "❌ No APK found"
+            find . -path "*/build/outputs/*" -type f | head -20
+            exit 1
+          fi
+          echo "✅ Found APK: $APK_PATH"
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: ${{ steps.find_apk.outputs.apk_path }}
+          retention-days: 7
