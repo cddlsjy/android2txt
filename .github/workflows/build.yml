@@ -1,7 +1,8 @@
 name: Build Android APK
 
 on:
-  push:              # 所有分支 push 触发
+  push:
+    branches: [ '**'  ]
   workflow_dispatch:
 
 env:
@@ -13,6 +14,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      # ✅ 新增：强制清理 Gradle 缓存
+      - name: Clean Gradle Cache
+        run: |
+          rm -rf ~/.gradle/caches/
+          rm -rf ~/.gradle/wrapper/
 
       - name: Set up JDK 17
         id: setup-java
@@ -30,13 +37,20 @@ jobs:
           echo "JAVA_HOME: $JAVA_HOME"
           java -version
 
+      # ✅ 关键修复1：不指定 gradle-version，使用项目 wrapper 中的 8.13
+      # 如果仍然想显式指定，改为 gradle-version: '8.13'
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+        # with:
+        #   gradle-version: '8.13'   # 可选，但建议省略以使用 wrapper
 
-      # 不再需要 chmod +x gradlew
+      # ✅ 关键修复2：给 gradlew 添加执行权限
+      - name: Make gradlew executable
+        run: chmod +x gradlew
 
+      # ✅ 关键修复3：使用 ./gradlew 而不是 gradle
       - name: Build APK
-        run: gradle assembleDebug --stacktrace --no-daemon   # 改为 gradle
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Find and upload APK
         id: find_apk
