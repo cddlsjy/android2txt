@@ -21,12 +21,9 @@ android {
     }
 
     buildTypes {
-        release {
+        getByName("release") {
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 
@@ -47,17 +44,15 @@ android {
         kotlinCompilerExtensionVersion = "1.5.5"
     }
 
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-            excludes += "/META-INF/DEPENDENCIES"
-            excludes += "/META-INF/LICENSE"
-            excludes += "/META-INF/LICENSE.txt"
-            excludes += "/META-INF/NOTICE"
-            excludes += "/META-INF/NOTICE.txt"
-            excludes += "/META-INF/LICENSE.md"
-            excludes += "/META-INF/NOTICE.md"
-        }
+    packagingOptions {
+        exclude("/META-INF/{AL2.0,LGPL2.1}")
+        exclude("/META-INF/DEPENDENCIES")
+        exclude("/META-INF/LICENSE")
+        exclude("/META-INF/LICENSE.txt")
+        exclude("/META-INF/NOTICE")
+        exclude("/META-INF/NOTICE.txt")
+        exclude("/META-INF/LICENSE.md")
+        exclude("/META-INF/NOTICE.md")
     }
 }
 
